@@ -1,0 +1,30 @@
+{
+    "name": "first-bolt-app",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@slack/bolt": "^3.4.0",
+        "mongodb": "^3.6.9",
+        "node-fetch": "^2.6.1",
+        "request": "^2.88.2"
+    },
+    "text": "hi",
+    "attachments": [
+        {
+            "title": "Click button!",
+            "actions": [
+                {
+                    "type": "button",
+                    "text": "Button",
+                    "name": "greeting"
+                }
+            ]
+        }
+    ]
+}
