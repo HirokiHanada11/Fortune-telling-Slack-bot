@@ -252,6 +252,41 @@ const setupPersonalizedFortuneMethod = async (body, client) => {
   }
 }
 
+//show the modal for managing photos
+const managePersonalizedFortuneMethod = async (body, client, dbName, dbclient) => {
+  try {
+    const slackAppUsersdb = dbclient.db(dbName);
+    // Use the collection "users"
+    const usersCol = slackAppUsersdb.collection("users");
+    //query to retrieve user data 
+    let query = { "id": body.user_id };
+    let userDoc = await usersCol.findOne(query); //retrieving data from db
+    const imageBlock = await createImageBlock(userDoc.favPhoto);
+    await client.views.open({
+      // Pass a valid trigger_id within 3 seconds of receiving it
+      "trigger_id": body.trigger_id,
+      // View payload
+      "view": {
+        "type": 'modal',
+        // View identifier
+        "callback_id": 'manage_images',
+        "title": {
+          "type": 'plain_text',
+          "text": '削除したい画像に☑'
+        },
+        "blocks": imageBlock,
+        "submit": {
+          "type": "plain_text",
+          "text": "Delete"
+        }
+      }
+    });
+    console.log("Success: posted today's personalized fortune");
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 //modal for selecting horoscope
 const defaultFortuneMethod = async (body, client) => {
   try {
@@ -285,9 +320,44 @@ const defaultFortuneMethod = async (body, client) => {
     console.error(error);
   }
 }
+
+//creating block that contain all the images
+const createImageBlock = async (favPhotoArr) => {
+  const options = new Array();
+  favPhotoArr.forEach((url) => {
+    let option = {
+      "text": {
+        "type": "plain_text",
+        "text": url,
+        "emoji": true
+      },
+      "value": url
+    }
+    options.push(option);
+  });
+  const block = [
+		{
+			"type": "input",
+      "block_id": "checkboxes_for_delete",
+			"element": {
+				"type": "checkboxes",
+				"options": options,
+				"action_id": "checkboxes_action"
+			},
+			"label": {
+				"type": "plain_text",
+				"text": "削除したいURLに☑",
+				"emoji": true
+			}
+		}
+	]
+  return block;
+}
+
   module.exports = {
     personalizedFortune: personalizedFortuneMethod,
     defaultFortune: defaultFortuneMethod,
     setupPersonalizedFortune:setupPersonalizedFortuneMethod,
-    fetchFortune: fetchFortuneMethod
+    fetchFortune: fetchFortuneMethod,
+    managePersonalizedFortune: managePersonalizedFortuneMethod
   }
