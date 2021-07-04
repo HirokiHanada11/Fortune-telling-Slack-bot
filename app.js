@@ -231,6 +231,67 @@ app.command('/mars', async({ command, ack, say }) => {
   }
 });
 
+app.message('', async ({message, say }) => {
+  try {
+      // Call the conversations.create method using the WebClient
+
+      if (message.channel == "C027B653BG9") {
+        const result = await app.client.conversations.create({
+          // The name of the conversation
+          name: message.text + ""
+        });
+
+        await app.client.chat.postMessage({
+          channel: message.channel,
+          text: `チャンネルを作成しました->https://mytest-xhb5002.slack.com/archives/${result["channel"]["name"]}`
+        });
+      
+        // The result will include information like the ID of the conversation
+        //console.log(result);
+
+        await app.client.conversations.invite({
+            channel: result["channel"]["id"],
+            users: message.user
+        });
+      }
+    }
+    catch (error) {
+      await say("チャンネルが作成できません");
+    }
+
+});
+
+app.message('close', async ({message, say}) => {
+  const result = await app.client.conversations.history({
+    channel: message.channel,
+  });
+
+  var fs = require("fs");
+  var file_name = message.channel + ".txt";
+
+  fs.writeFile(file_name, `https://mytest-xhb5002.slack.com/archives/${message.channel}\n`, function (err) {
+    if (err) {throw err;}
+    console.log("writing channle log file,,,");
+  });
+
+  result["messages"].reverse().forEach(message => {
+    fs.appendFile(file_name, message["text"] + "\n", function (err) {
+      if (err) {throw err;}
+    });
+  });
+
+  await app.client.files.upload({
+    channels: "C027B653BG9",
+    initial_comment: `Log file of ${message.channel}`,
+    file: fs.createReadStream(file_name)
+  });
+
+  await app.client.conversations.archive({
+    channel: message.channel
+  });
+
+});
+
 (async () => {
   // Start your app
   await app.start(process.env.PORT || 3000);
