@@ -15,8 +15,9 @@ const app = new App({
   signingSecret: process.env.SLACK_SIGNING_SECRET
 });
 
-//import set of functions for handling fortune commands 
+//import set of functions for handling commands and actions 
 const FortuneHandler = require("./fortuneHandling"); 
+const dbHandler = require('./dbHandling');
 
 //listens for /fortune command and opens a modal
 app.command('/fortune', async({ ack, command, body, client }) => {
@@ -28,6 +29,9 @@ app.command('/fortune', async({ ack, command, body, client }) => {
     }else if(command.text === "set"){
       await FortuneHandler.setupPersonalizedFortune(body, client);
       console.log("success: personalization setting modal opened for", body.user_name);
+    } else if(command.text === "del"){
+      await FortuneHandler.managePersonalizedFortune(body, client, dbName, dbclient);
+      console.log("success: opened manage modal")
     } else{
       await FortuneHandler.defaultFortune(body, client);
       console.log("success: opened default menu for",body.user_name)
@@ -123,6 +127,7 @@ app.action('select_horo', async({ ack, body, client}) => {
   }  
 });
 
+
 //submit handling for modal form and saving it to the mongodb database
 app.view("modal-with-inputs", async({ ack, body, client}) => {
   await ack();
@@ -135,7 +140,7 @@ app.view("modal-with-inputs", async({ ack, body, client}) => {
     console.log("successfully received submission"); 
 
     console.log(favPhotoUrlArr);
-    await storeUserInfo(userId, username, horoscope, favPhotoUrlArr);
+    await dbHandler.storeUserInfo(userId, username, horoscope, favPhotoUrlArr, dbName, dbclient);
     console.log("Success: stored user information in the database.")
     await client.views.open({
       // Pass a valid trigger_id within 3 seconds of receiving it
@@ -166,49 +171,45 @@ app.view("modal-with-inputs", async({ ack, body, client}) => {
   }
 })
 
-//mongodb storing data to slackAppUsers database
-const storeUserInfo = async (id, username, horoscope, url) =>{
-  try {
-    const slackAppUsersdb = dbclient.db(dbName);
-    // Use the collection "users"
-    const usersCol = slackAppUsersdb.collection("users");
-    // Construct a document                                                                                                                                                              
-    let userDocument = {
-        "id": id,
-        "username": username,                                                                                                                               
-        "horoscope": horoscope,                                                                                                                               
-        "favPhoto": url
-    }
-    //query to check if the data does not exist in the database
-    let query = { "id": id };
-    //if data does not exist
-    let userDoc = await usersCol.findOne(query);
-    if(await userDoc === null){
-    // Insert a single document, wait for promise so we can read it back
-      const p = await usersCol.insertOne(userDocument);
-    // Find one document
-      let userDoc = await usersCol.findOne(query);
-    // Print to the console
-      console.log("Inserted\n", userDoc);
-    }else {//if the the data exists, update
-      let newUrlArr = userDoc.favPhoto.concat(url) 
-      let updateUserDocument = {
-        $set: {
-          "horoscope": horoscope,                                                                                                                                   
-          "favPhoto": newUrlArr
-        }
+//delete handler
+app.view("manage_images", async({ ack, body, client}) => {
+  await ack();
+  try{
+    const userId = await body.user.id;
+    const checkedUrlArr = await body.view.state.values.checkboxes_for_delete.checkboxes_action.selected_options;
+    console.log("successfully received submission"); 
+    console.log(body.view.state.values.checkboxes_for_delete.checkboxes_action.selected_options);
+    // call handler to delete the urls from the database
+    await dbHandler.deleteUserInfo(userId, checkedUrlArr, dbName, dbclient);
+    console.log("Success: deleted checked urls from the database.")
+    await client.views.open({
+      // Pass a valid trigger_id within 3 seconds of receiving it
+      "trigger_id": body.trigger_id,
+      // View payload
+      "view": {
+        "type": 'modal',
+        // View identifier
+        "callback_id": 'view_end',
+        "title": {
+          "type": 'plain_text',
+          "text": 'ご記入ありがとうございました！'
+        },
+        "blocks": [
+          {
+            "type": "section",
+            "block_id": "section_pick_horo",
+            "text": {
+              "type": "mrkdwn",
+              "text": "/fortune set で写真は追加できます！"
+            }
+          }
+        ]
       }
-      //update one element 
-      const q = await usersCol.updateOne(query, updateUserDocument);
-      // Find one document
-      let myDoc = await usersCol.findOne();
-      // Print to the console
-      console.log("Updated\n", myDoc);
-    }
-   } catch (err) {
-    console.log(err.stack);
+    })
+  } catch(err){
+    console.error(err);
   }
-}
+})
 
 //import functions for handling mars command 
 const marsHanler = require('./marsHandling');
